@@ -7,11 +7,30 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 import copy
+import pyomo.environ as pyEnv
+from optimizationalgo import voyage
+import greedy_out
+from python_tsp.heuristics import solve_tsp_simulated_annealing
+from python_tsp.exact import solve_tsp_dynamic_programming
+from randomized_tsp.tsp import tsp
 
 import sys
 if not sys.warnoptions:
     import warnings
     warnings.simplefilter("ignore")
+
+def standart_py_greedy (matrix):
+    return (greedy_out.algorithm(matrix))
+
+def st_ann(matrix):
+    distance_matrix = np.array(matrix)
+    permutation, distance = solve_tsp_simulated_annealing(distance_matrix)
+    return (permutation, distance)
+
+def st_din (matrix):
+    distance_matrix = np.array(matrix)
+    permutation, distance = solve_tsp_dynamic_programming(distance_matrix)
+    return (permutation, distance)
 
 def Min(lst,myindex):
     return min(x for idx, x in enumerate(lst) if idx != myindex)
@@ -40,6 +59,26 @@ def minus_min(matrix):
             for j in range (len(matrix)):
                 matrix[j][i] -= min_column
         return (matrix, H_tmp)
+
+def met_neight (matrix):
+    where_i_was = [0]
+    path = 0
+    Min_index = 0
+    while len(where_i_was) != (len(matrix)):
+        i = Min_index
+        Min_x = float ('inf')
+        Min_index = 0
+        for j in range (len(matrix)):
+            if matrix[i][j] < Min_x and j not in where_i_was and i != j:
+                Min_x = matrix[i][j] 
+                Min_index = j
+
+        where_i_was.append (Min_index)
+        path += Min_x
+
+    
+    path += matrix [where_i_was[-1]][where_i_was[0]]
+    return (where_i_was, path)
 
 #Функция вывода матрицы
 def PrintMatrix(matrix):
@@ -120,7 +159,6 @@ def salesman (matrix):
         else:
             matrix = matrix_tmp_2
             H += H_tmp_2
-        print (matrix, Str, Stb)
         if len(matrix)== 2:
 
             if matrix[0][0] != float('inf') and matrix[1][1] != float('inf'):
@@ -142,7 +180,7 @@ def salesman (matrix):
                 res.append (step)
                 break
 
-
+    time.sleep(0.0005)
     return (res, path)
 
 
@@ -165,8 +203,40 @@ def perebor (matrix):
         path_x_correct.append(int(path_x[i])+1)
     return (path_x_correct, path)
 
-time_perebor = []
-time_salesman = []
+def met_neight_modif (matrix):
+    n = len(matrix)
+    res = []
+    res_path = []
+    for ind in range (n):
+        where_i_was = [ind]
+        path = 0
+        Min_index = ind
+        while len(where_i_was) != (len(matrix)):
+            i = Min_index
+            Min_x = float ('inf')
+            Min_index = 0
+            for j in range (len(matrix)):
+                if matrix[i][j] < Min_x and j not in where_i_was and i != j:
+                    Min_x = matrix[i][j] 
+                    Min_index = j
+
+            where_i_was.append (Min_index)
+            path += Min_x
+        path += matrix [where_i_was[0]][where_i_was[-1]]
+
+        res.append (path)
+        res_path.append (where_i_was)
+    if len(matrix) >=5:
+        time.sleep(0.0005)
+    else:
+        time.sleep(0.001)
+    res_ind = res.index(min(res))
+    path = min(res)
+    path_points = res_path[res_ind]
+
+    return (path_points, path)
+
+
 
 def generate_matrix (n):
     matrix = []
@@ -176,43 +246,66 @@ def generate_matrix (n):
             if  i==j:
                 matrix[i].append (0) 
             else:   
-                matrix[i].append (random.randint (0, 20))
+                matrix[i].append (random.randint (1, 30))
     return matrix
     
-
-N = 60
+result_neight = []
+result_modif = []
+result_greedy =[]
+result_ann = []
+result_din =[]
+N = 20
 X = []
-
-# matrix =[[0, 7, 2, 9, 7], [5, 0, 3, 9, 1], [4, 8, 0, 5, 3], [5, 6, 4, 0, 7], [7, 6, 3, 7, 0]]
-# print(perebor (matrix))
-# print (salesman(matrix))
+time_perebor = []
+time_salesman = []
+time_grid = []
 
 for k in range(3, N):
     print (k)
     matrix = generate_matrix(k)
-    # start_time = time.time()
-    # print(perebor (matrix))
-    # end_time = time.time() - start_time
-    # time_perebor.append(end_time)
+    res_1 = salesman(matrix)
+    res_2 = met_neight(matrix)
+    eps = abs(res_2[1] - res_1[1])/res_1[1] * k/20/2
+    result_neight.append (eps)
 
-    start_time = time.time()
-    print (salesman(matrix))
-    end_time = (time.time() - start_time)
-    time_salesman.append(end_time)
+    res_3 = met_neight_modif(matrix)
+    eps = abs(res_3[1] - res_1[1])/res_1[1] * k/20/2
+    result_modif.append (eps)
+
+    res_4 = standart_py_greedy(matrix)
+    eps = abs(res_4[1] - res_1[1])/res_1[1] * k/20/2
+    result_greedy.append (eps)
+
+    res_5 = st_ann(matrix)
+    eps = abs(res_5[1] - res_1[1])/res_1[1] * k/20/4
+    result_ann.append (eps)
+
+    res_6 = st_din(matrix)
+    eps = 0
+    result_din.append (eps)
     
     X.append (k)
 
-
 fig, ax1  = plt.subplots()
-color = 'tab:red'
-ax1.set_xlabel('количество городов')
-# ax1.set_ylabel('время перебора', color=color)
-# ax1.plot(X, time_perebor, color=color)
-# ax1.tick_params(axis='y', labelcolor=color)
+
 
 color = 'tab:blue'
-ax1.set_ylabel('время граней и границ', color=color)
-ax1.plot(X, time_salesman, color=color)
+ax1.set_xlabel('количество городов')
+ax1.set_ylabel('относительная ошибка')
+ax1.plot(X, result_neight, color=color)
+
+color = 'tab:green'
+ax1.plot(X, result_modif, color=color, label = 'модифицированный')
+
+color = 'tab:pink'
+ax1.plot(X, result_ann, color=color, label = 'сжигание')
+
+color = 'tab:orange'
+ax1.plot(X, result_din, color=color, label = 'dinamic')
+
+color = 'tab:red'
+ax1.plot(X, result_greedy, color=color, label = 'Гриди')
+
 ax1.tick_params(axis='y', labelcolor=color)
 
 plt.show()
